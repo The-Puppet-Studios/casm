@@ -6,3 +6,11 @@ out "This is a test";
 out message;
 out num;
 out flag;
+
+int cool = 4;
+
+if cool == 4
+    out "yay";
+else
+    out "no";
+end

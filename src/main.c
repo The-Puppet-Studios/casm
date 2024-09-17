@@ -118,6 +118,23 @@ void declare_variable(char *line) {
     }
 }
 
+// Function to evaluate a condition in an if statement
+int evaluate_condition(const char *var_name, const char *operator, const char *value) {
+    Variable *var = find_variable(var_name);
+    if (!var) {
+        printf("Variable %s not found\n", var_name);
+        return 0;
+    }
+
+    int int_value = atoi(value);
+
+    if (strcmp(operator, "==") == 0) {
+        return var->value.intValue == int_value;
+    }
+
+    return 0;
+}
+
 // Function to print a variable value
 void print_variable_value(Variable *var) {
     if (var->type == TYPE_INT) {
@@ -151,6 +168,49 @@ void run_command(char *line) {
     }
 }
 
+// Function to process an if-else block
+void process_if_block(FILE *file, char *condition_line) {
+    // Parse the condition
+    char *if_keyword = strtok(condition_line, " ");
+    char *var_name = strtok(NULL, " ");
+    char *operator = strtok(NULL, " ");
+    char *value = strtok(NULL, " ");
+
+    if (!if_keyword || !var_name || !operator || !value) {
+        printf("Syntax error in if statement\n");
+        return;
+    }
+
+    int condition_met = evaluate_condition(var_name, operator, value);
+    int inside_else_block = 0;
+
+    char line[256];
+
+    // Process the lines within the if-else block
+    while (fgets(line, sizeof(line), file)) {
+        char *trimmed = trim_whitespace(line);
+
+        // Check for the end of the if-else block
+        if (strcmp(trimmed, "end") == 0) {
+            free(trimmed);
+            break;
+        }
+
+        if (strcmp(trimmed, "else") == 0) {
+            inside_else_block = 1;
+            free(trimmed);
+            continue;
+        }
+
+        // Only run commands inside the correct block
+        if ((condition_met && !inside_else_block) || (!condition_met && inside_else_block)) {
+            run_command(trimmed);
+        }
+
+        free(trimmed);
+    }
+}
+
 // Function to read and interpret a .casm file
 void interpret_file(const char *filename) {
     FILE *file = fopen(filename, "r");
@@ -165,6 +225,8 @@ void interpret_file(const char *filename) {
         if (strlen(trimmed) > 0) {
             if (strncmp(trimmed, "int ", 4) == 0 || strncmp(trimmed, "str ", 4) == 0 || strncmp(trimmed, "sml ", 4) == 0) {
                 declare_variable(trimmed);
+            } else if (strncmp(trimmed, "if ", 3) == 0) {
+                process_if_block(file, trimmed);
             } else {
                 run_command(trimmed);
             }
