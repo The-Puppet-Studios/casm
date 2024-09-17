@@ -1,3 +1,8 @@
-out "hello!"
-out "test 2"
-out "possibly"
+int num = 10;
+str message = "Hello";
+sml flag = 1;
+
+out "This is a test";
+out message;
+out num;
+out flag;
