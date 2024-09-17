@@ -1,248 +1,245 @@
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#include <ctype.h>  // Include ctype.h for isspace()
+#include <ctype.h>
+#include <string.h>
 
-#define MAX_VARS 100
+#define MAX_STRING_LENGTH 255
+#define INITIAL_CAPACITY 16
 
-// Enumeration for variable types
 typedef enum {
-    TYPE_INT,
-    TYPE_STR,
-    TYPE_SML
-} VarType;
+    PRINT, NUMBER, STRING, IDENTIFIER, END, UNKNOWN
+} Token;
 
-// Structure to store a variable
 typedef struct {
-    char name[50];
-    VarType type;
-    union {
-        int intValue;
-        char strValue[256];
-        int smlValue;
-    } value;
+    char *name;
+    int value;
 } Variable;
 
-// Array to store variables
-Variable variables[MAX_VARS];
-int var_count = 0;
+typedef struct {
+    Variable *variables;
+    size_t size;
+    size_t capacity;
+} VariableTable;
 
-// Function to remove leading and trailing whitespace (updated)
-char *trim_whitespace(const char *str) {
-    // Create a writable copy of the input string
-    char *copy = strdup(str);
-    if (!copy) {
-        perror("Failed to allocate memory");
-        exit(EXIT_FAILURE);
-    }
+typedef struct {
+    const char *source;
+    size_t index;
+    char strValue[MAX_STRING_LENGTH + 1];
+    int numValue;
+    char idValue[MAX_STRING_LENGTH + 1];
+    VariableTable varTable;
+} Lexer;
 
-    char *start = copy;
-    char *end;
-
-    // Trim leading whitespace
-    while (isspace((unsigned char)*start)) start++;
-
-    if (*start == 0) {  // All spaces?
-        free(copy);
-        return strdup("");  // Return an empty string
-    }
-
-    // Trim trailing whitespace
-    end = start + strlen(start) - 1;
-    while (end > start && (isspace((unsigned char)*end) || *end == ';')) end--;
-
-    // Write new null terminator
-    *(end + 1) = 0;
-
-    // Copy the trimmed string into a new buffer and free the original copy
-    char *trimmed = strdup(start);
-    if (!trimmed) {
-        perror("Failed to allocate memory");
-        exit(EXIT_FAILURE);
-    }
-
-    free(copy);
-    return trimmed;
+static void initVariableTable(VariableTable *table) {
+    table->variables = malloc(INITIAL_CAPACITY * sizeof(Variable));
+    table->size = 0;
+    table->capacity = INITIAL_CAPACITY;
 }
 
-// Function to find a variable by name
-Variable* find_variable(const char* name) {
-    for (int i = 0; i < var_count; i++) {
-        if (strcmp(variables[i].name, name) == 0) {
-            return &variables[i];
+static void freeVariableTable(VariableTable *table) {
+    for (size_t i = 0; i < table->size; ++i) {
+        free(table->variables[i].name);
+    }
+    free(table->variables);
+}
+
+static Variable *findVariable(VariableTable *table, const char *name) {
+    for (size_t i = 0; i < table->size; ++i) {
+        if (strcmp(table->variables[i].name, name) == 0) {
+            return &table->variables[i];
         }
     }
     return NULL;
 }
 
-// Function to add a new variable
-void add_variable(const char *name, VarType type, const char *value) {
-    if (var_count >= MAX_VARS) {
-        printf("Variable limit exceeded\n");
-        return;
+static void addVariable(VariableTable *table, const char *name, int value) {
+    if (table->size == table->capacity) {
+        table->capacity *= 2;
+        table->variables = realloc(table->variables, table->capacity * sizeof(Variable));
+        if (!table->variables) {
+            perror("Error reallocating memory");
+            exit(EXIT_FAILURE);
+        }
     }
-
-    Variable *var = &variables[var_count++];
-    strcpy(var->name, name);
-    var->type = type;
-
-    if (type == TYPE_INT) {
-        var->value.intValue = atoi(value);
-    } else if (type == TYPE_STR) {
-        strcpy(var->value.strValue, value);
-    } else if (type == TYPE_SML) {
-        var->value.smlValue = (strcmp(value, "1") == 0) ? 1 : 0;
+    table->variables[table->size].name = strdup(name);
+    if (!table->variables[table->size].name) {
+        perror("Error duplicating string");
+        exit(EXIT_FAILURE);
     }
+    table->variables[table->size].value = value;
+    table->size++;
 }
 
-// Function to declare variables
-void declare_variable(char *line) {
-    char *type = strtok(line, " ");
-    char *name = strtok(NULL, " ");
-    char *equals = strtok(NULL, " ");
-    char *value = strtok(NULL, "\"");
-
-    if (!type || !name || !equals || !value) {
-        printf("Syntax error in variable declaration\n");
-        return;
+static Token nextToken(Lexer *lexer) {
+    while (isspace(lexer->source[lexer->index])) {
+        lexer->index++;
     }
 
-    if (strcmp(type, "int") == 0) {
-        add_variable(name, TYPE_INT, value);
-    } else if (strcmp(type, "str") == 0) {
-        add_variable(name, TYPE_STR, value);
-    } else if (strcmp(type, "sml") == 0) {
-        add_variable(name, TYPE_SML, value);
-    } else {
-        printf("Unknown type: %s\n", type);
-    }
-}
+    if (lexer->source[lexer->index] == '\0') return END;
 
-// Function to evaluate a condition in an if statement
-int evaluate_condition(const char *var_name, const char *operator, const char *value) {
-    Variable *var = find_variable(var_name);
-    if (!var) {
-        printf("Variable %s not found\n", var_name);
-        return 0;
-    }
-
-    int int_value = atoi(value);
-
-    if (strcmp(operator, "==") == 0) {
-        return var->value.intValue == int_value;
-    }
-
-    return 0;
-}
-
-// Function to print a variable value
-void print_variable_value(Variable *var) {
-    if (var->type == TYPE_INT) {
-        printf("%d\n", var->value.intValue);
-    } else if (var->type == TYPE_STR) {
-        printf("%s\n", var->value.strValue);
-    } else if (var->type == TYPE_SML) {
-        printf("%d\n", var->value.smlValue);
-    }
-}
-
-// Function to interpret the 'out' command
-void run_command(char *line) {
-    char *cmd = strtok(line, " ");
-    if (cmd != NULL && strcmp(cmd, "out") == 0) {
-        char *msg = strtok(NULL, "\"");
-        if (msg != NULL) {
-            char *trimmed_msg = trim_whitespace(msg);
-            Variable *var = find_variable(trimmed_msg);
-            if (var) {
-                print_variable_value(var);
-            } else {
-                printf("%s\n", trimmed_msg);
+    char current = lexer->source[lexer->index];
+    
+    if (current == '"') {
+        lexer->index++;
+        size_t start = lexer->index;
+        while (lexer->source[lexer->index] != '"' && lexer->source[lexer->index] != '\0') {
+            lexer->index++;
+        }
+        if (lexer->source[lexer->index] == '"') {
+            if (lexer->index - start > MAX_STRING_LENGTH) {
+                fprintf(stderr, "Error: String length exceeds maximum allowed length.\n");
+                return UNKNOWN;
             }
-            free(trimmed_msg);
-        } else {
-            printf("Syntax error: expected string after 'out'\n");
+            strncpy(lexer->strValue, &lexer->source[start], lexer->index - start);
+            lexer->strValue[lexer->index - start] = '\0';
+            lexer->index++;
+            return STRING;
         }
-    } else {
-        printf("Unknown command: %s\n", cmd);
+        return UNKNOWN;
     }
+    
+    if (isdigit(current)) {
+        size_t start = lexer->index;
+        while (isdigit(lexer->source[lexer->index])) {
+            lexer->index++;
+        }
+        if (lexer->index - start > MAX_STRING_LENGTH) {
+            fprintf(stderr, "Error: Number length exceeds maximum allowed length.\n");
+            return UNKNOWN;
+        }
+        strncpy(lexer->idValue, &lexer->source[start], lexer->index - start);
+        lexer->idValue[lexer->index - start] = '\0';
+        lexer->numValue = atoi(lexer->idValue);
+        return NUMBER;
+    }
+    
+    if (isalpha(current)) {
+        size_t start = lexer->index;
+        while (isalnum(lexer->source[lexer->index])) {
+            lexer->index++;
+        }
+        if (lexer->index - start > MAX_STRING_LENGTH) {
+            fprintf(stderr, "Error: Identifier length exceeds maximum allowed length.\n");
+            return UNKNOWN;
+        }
+        strncpy(lexer->idValue, &lexer->source[start], lexer->index - start);
+        lexer->idValue[lexer->index - start] = '\0';
+        return IDENTIFIER;
+    }
+    
+    if (strncmp(&lexer->source[lexer->index], "out ", 4) == 0) {
+        lexer->index += 4;
+        return PRINT;
+    }
+    
+    return UNKNOWN;
 }
 
-// Function to process an if-else block
-void process_if_block(FILE *file, char *condition_line) {
-    // Parse the condition
-    char *if_keyword = strtok(condition_line, " ");
-    char *var_name = strtok(NULL, " ");
-    char *operator = strtok(NULL, " ");
-    char *value = strtok(NULL, " ");
-
-    if (!if_keyword || !var_name || !operator || !value) {
-        printf("Syntax error in if statement\n");
-        return;
+static void interpret(const char *source) {
+    Lexer lexer = { source, 0, "", 0, "", {NULL, 0, 0} };
+    initVariableTable(&lexer.varTable);
+    
+    Token token = nextToken(&lexer);
+    
+    while (token != END) {
+        switch (token) {
+            case PRINT:
+                token = nextToken(&lexer);
+                if (token == STRING) {
+                    printf("%s\n", lexer.strValue);
+                } else if (token == IDENTIFIER) {
+                    Variable *var = findVariable(&lexer.varTable, lexer.idValue);
+                    if (var) {
+                        printf("Variable '%s': %d\n", lexer.idValue, var->value);
+                    } else {
+                        printf("Variable '%s' not found\n", lexer.idValue);
+                    }
+                } else if (token == NUMBER) {
+                    printf("%d\n", lexer.numValue);
+                } else {
+                    fprintf(stderr, "Error: Unexpected token after 'out' at index %zu\n", lexer.index);
+                }
+                break;
+            case IDENTIFIER:
+                token = nextToken(&lexer);
+                if (token == NUMBER) {
+                    Variable *var = findVariable(&lexer.varTable, lexer.idValue);
+                    if (var) {
+                        var->value = lexer.numValue;
+                    } else {
+                        addVariable(&lexer.varTable, lexer.idValue, lexer.numValue);
+                    }
+                    printf("Variable '%s' assigned value %d\n", lexer.idValue, lexer.numValue);
+                } else {
+                    fprintf(stderr, "Error: Invalid assignment for variable '%s' at index %zu\n", lexer.idValue, lexer.index);
+                }
+                break;
+            case UNKNOWN:
+                fprintf(stderr, "Error: Unknown token at index %zu\n", lexer.index);
+                break;
+            default:
+                fprintf(stderr, "Error: Unexpected token at index %zu\n", lexer.index);
+                break;
+        }
+        token = nextToken(&lexer);
     }
 
-    int condition_met = evaluate_condition(var_name, operator, value);
-    int inside_else_block = 0;
-
-    char line[256];
-
-    // Process the lines within the if-else block
-    while (fgets(line, sizeof(line), file)) {
-        char *trimmed = trim_whitespace(line);
-
-        // Check for the end of the if-else block
-        if (strcmp(trimmed, "end") == 0) {
-            free(trimmed);
-            break;
-        }
-
-        if (strcmp(trimmed, "else") == 0) {
-            inside_else_block = 1;
-            free(trimmed);
-            continue;
-        }
-
-        // Only run commands inside the correct block
-        if ((condition_met && !inside_else_block) || (!condition_met && inside_else_block)) {
-            run_command(trimmed);
-        }
-
-        free(trimmed);
-    }
+    freeVariableTable(&lexer.varTable);
 }
 
-// Function to read and interpret a .casm file
-void interpret_file(const char *filename) {
+static char *readFile(const char *filename) {
     FILE *file = fopen(filename, "r");
     if (!file) {
-        printf("Could not open file: %s\n", filename);
-        return;
+        perror("Error opening file");
+        return NULL;
     }
-
-    char line[256];
-    while (fgets(line, sizeof(line), file)) {
-        char *trimmed = trim_whitespace(line);
-        if (strlen(trimmed) > 0) {
-            if (strncmp(trimmed, "int ", 4) == 0 || strncmp(trimmed, "str ", 4) == 0 || strncmp(trimmed, "sml ", 4) == 0) {
-                declare_variable(trimmed);
-            } else if (strncmp(trimmed, "if ", 3) == 0) {
-                process_if_block(file, trimmed);
-            } else {
-                run_command(trimmed);
-            }
-        }
-        free(trimmed);
+    
+    fseek(file, 0, SEEK_END);
+    long length = ftell(file);
+    if (length < 0) {
+        perror("Error determining file size");
+        fclose(file);
+        return NULL;
     }
+    
+    fseek(file, 0, SEEK_SET);
 
+    char *content = malloc(length + 1);
+    if (!content) {
+        perror("Error allocating memory");
+        fclose(file);
+        return NULL;
+    }
+    
+    size_t readBytes = fread(content, 1, length, file);
+    if (readBytes != (size_t)length) {
+        perror("Error reading file");
+        free(content);
+        fclose(file);
+        return NULL;
+    }
+    
+    content[length] = '\0';
     fclose(file);
+    return content;
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        printf("Usage: casm <file.casm>\n");
-        return 1;
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <file.casm>\n", argv[0]);
+        return EXIT_FAILURE;
     }
 
-    interpret_file(argv[1]);
-    return 0;
+    char *filename = argv[1];
+    char *code = readFile(filename);
+
+    if (!code) {
+        fprintf(stderr, "Error: Could not read file or file is empty.\n");
+        return EXIT_FAILURE;
+    }
+
+    interpret(code);
+    free(code);
+
+    return EXIT_SUCCESS;
 }
