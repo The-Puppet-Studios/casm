@@ -1,25 +1,44 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>  // Include ctype.h for isspace()
 
 // Function to remove leading and trailing whitespace
-char *trim_whitespace(char *str) {
+char *trim_whitespace(const char *str) {
+    // Create a writable copy of the input string
+    char *copy = strdup(str);
+    if (!copy) {
+        perror("Failed to allocate memory");
+        exit(EXIT_FAILURE);
+    }
+
+    char *start = copy;
     char *end;
 
-    // Trim leading space
-    while(*str == ' ') str++;
+    // Trim leading whitespace
+    while (isspace((unsigned char)*start)) start++;
 
-    if(*str == 0)  // All spaces?
-        return str;
+    if (*start == 0) {  // All spaces?
+        free(copy);
+        return strdup("");  // Return an empty string
+    }
 
-    // Trim trailing space
-    end = str + strlen(str) - 1;
-    while(end > str && (*end == ' ' || *end == ';')) end--;
+    // Trim trailing whitespace
+    end = start + strlen(start) - 1;
+    while (end > start && (isspace((unsigned char)*end) || *end == ';')) end--;
 
     // Write new null terminator
     *(end + 1) = 0;
 
-    return str;
+    // Copy the trimmed string into a new buffer and free the original copy
+    char *trimmed = strdup(start);
+    if (!trimmed) {
+        perror("Failed to allocate memory");
+        exit(EXIT_FAILURE);
+    }
+
+    free(copy);
+    return trimmed;
 }
 
 // Function to interpret and run the commands
@@ -28,7 +47,9 @@ void run_command(char *line) {
     if (cmd != NULL && strcmp(cmd, "out") == 0) {
         char *msg = strtok(NULL, "\"");
         if (msg != NULL) {
-            printf("%s\n", trim_whitespace(msg));
+            char *trimmed_msg = trim_whitespace(msg);
+            printf("%s\n", trimmed_msg);
+            free(trimmed_msg);
         } else {
             printf("Syntax error: expected string after 'out'\n");
         }
@@ -51,6 +72,7 @@ void interpret_file(const char *filename) {
         if (strlen(trimmed) > 0) {
             run_command(trimmed);
         }
+        free(trimmed);
     }
 
     fclose(file);
