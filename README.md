@@ -6,7 +6,7 @@ CASM is a high-level assembly inspired interpreted language designed to make wor
 To print something you can use the out function. Heres an example:
 
 ```
-out "yay";
+out "Welcome to CASM!";
 ```
 
 ## Variables
@@ -21,14 +21,14 @@ sml smallint = 1;
 ```
 
 ## If Else
-To do an if else its very easy. Heres an example
+To do an if else you need to define a syntax like this:
 
 ```
 int cooler = 5;
 
 if cooler == 5
-    out "yay";
+    out "Nice!";
 else
-    out "no";
+    out "Nope.";
 end
 ```
