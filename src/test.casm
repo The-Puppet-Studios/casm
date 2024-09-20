@@ -14,3 +14,11 @@ if cool == 4
 else
     out "no";
 end
+
+in str input "Input a string: ";
+in int intinput "Input an integar: ";
+in sml smlinput "Input a small integar (1 or 0): ";
+
+out input;
+out intinput;
+out smlinput;

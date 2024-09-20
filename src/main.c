@@ -1,18 +1,16 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <ctype.h>  // Include ctype.h for isspace()
+#include <ctype.h>
 
 #define MAX_VARS 100
 
-// Enumeration for variable types
 typedef enum {
     TYPE_INT,
     TYPE_STR,
     TYPE_SML
 } VarType;
 
-// Structure to store a variable
 typedef struct {
     char name[50];
     VarType type;
@@ -23,49 +21,9 @@ typedef struct {
     } value;
 } Variable;
 
-// Array to store variables
 Variable variables[MAX_VARS];
 int var_count = 0;
 
-// Function to remove leading and trailing whitespace (updated)
-char *trim_whitespace(const char *str) {
-    // Create a writable copy of the input string
-    char *copy = strdup(str);
-    if (!copy) {
-        perror("Failed to allocate memory");
-        exit(EXIT_FAILURE);
-    }
-
-    char *start = copy;
-    char *end;
-
-    // Trim leading whitespace
-    while (isspace((unsigned char)*start)) start++;
-
-    if (*start == 0) {  // All spaces?
-        free(copy);
-        return strdup("");  // Return an empty string
-    }
-
-    // Trim trailing whitespace
-    end = start + strlen(start) - 1;
-    while (end > start && (isspace((unsigned char)*end) || *end == ';')) end--;
-
-    // Write new null terminator
-    *(end + 1) = 0;
-
-    // Copy the trimmed string into a new buffer and free the original copy
-    char *trimmed = strdup(start);
-    if (!trimmed) {
-        perror("Failed to allocate memory");
-        exit(EXIT_FAILURE);
-    }
-
-    free(copy);
-    return trimmed;
-}
-
-// Function to find a variable by name
 Variable* find_variable(const char* name) {
     for (int i = 0; i < var_count; i++) {
         if (strcmp(variables[i].name, name) == 0) {
@@ -75,7 +33,6 @@ Variable* find_variable(const char* name) {
     return NULL;
 }
 
-// Function to add a new variable
 void add_variable(const char *name, VarType type, const char *value) {
     if (var_count >= MAX_VARS) {
         printf("Variable limit exceeded\n");
@@ -95,107 +52,121 @@ void add_variable(const char *name, VarType type, const char *value) {
     }
 }
 
-// Function to declare variables
-void declare_variable(char *line) {
-    char *type = strtok(line, " ");
-    char *name = strtok(NULL, " ");
-    char *equals = strtok(NULL, " ");
-    char *value = strtok(NULL, "\"");
+char *trim_whitespace(const char *str) {
+    char *copy = strdup(str);
+    if (!copy) {
+        perror("Failed to allocate memory");
+        exit(EXIT_FAILURE);
+    }
 
-    if (!type || !name || !equals || !value) {
-        printf("Syntax error in variable declaration\n");
+    char *start = copy;
+    char *end;
+
+    while (isspace((unsigned char)*start)) start++;
+
+    if (*start == 0) {
+        free(copy);
+        return strdup("");
+    }
+
+    end = start + strlen(start) - 1;
+    while (end > start && (isspace((unsigned char)*end) || *end == ';')) end--;
+
+    *(end + 1) = 0;
+
+    char *trimmed = strdup(start);
+    if (!trimmed) {
+        perror("Failed to allocate memory");
+        exit(EXIT_FAILURE);
+    }
+
+    free(copy);
+    return trimmed;
+}
+
+void get_input(char *line) {
+    char *saveptr;
+    char *type = strtok_r(line, " ", &saveptr);
+    char *name = strtok_r(NULL, " ", &saveptr);
+    char *prompt = saveptr;
+    
+    if (!type || !name || !prompt) {
+        printf("Syntax error in input statement\n");
         return;
     }
 
-    if (strcmp(type, "int") == 0) {
-        add_variable(name, TYPE_INT, value);
-    } else if (strcmp(type, "str") == 0) {
-        add_variable(name, TYPE_STR, value);
+    // Remove leading and trailing quotes from prompt
+    prompt = strtok(prompt, "\"");
+    if (!prompt) {
+        printf("Syntax error: missing prompt in input statement\n");
+        return;
+    }
+
+    printf("%s", prompt);
+    char input[256];
+    if (fgets(input, sizeof(input), stdin) == NULL) {
+        printf("Error reading input\n");
+        return;
+    }
+    input[strcspn(input, "\n")] = 0; // Remove newline
+
+    if (strcmp(type, "str") == 0) {
+        add_variable(name, TYPE_STR, input);
+    } else if (strcmp(type, "int") == 0) {
+        char *endptr;
+        long value = strtol(input, &endptr, 10);
+        if (*endptr != '\0') {
+            printf("Error: Input for %s must be an integer\n", name);
+            return;
+        }
+        char intStr[20];
+        snprintf(intStr, sizeof(intStr), "%ld", value);
+        add_variable(name, TYPE_INT, intStr);
     } else if (strcmp(type, "sml") == 0) {
-        add_variable(name, TYPE_SML, value);
+        if (strcmp(input, "0") == 0 || strcmp(input, "1") == 0) {
+            add_variable(name, TYPE_SML, input);
+        } else {
+            printf("Error: Input for %s must be 0 or 1\n", name);
+            return;
+        }
     } else {
         printf("Unknown type: %s\n", type);
     }
 }
 
-// Function to evaluate a condition in an if statement
-int evaluate_condition(const char *var_name, const char *operator, const char *value) {
-    Variable *var = find_variable(var_name);
-    if (!var) {
-        printf("Variable %s not found\n", var_name);
-        return 0;
-    }
-
-    int int_value = atoi(value);
-
-    if (strcmp(operator, "==") == 0) {
-        return var->value.intValue == int_value;
-    }
-
-    return 0;
-}
-
-// Function to print a variable value
-void print_variable_value(Variable *var) {
-    if (var->type == TYPE_INT) {
-        printf("%d\n", var->value.intValue);
-    } else if (var->type == TYPE_STR) {
-        printf("%s\n", var->value.strValue);
-    } else if (var->type == TYPE_SML) {
-        printf("%d\n", var->value.smlValue);
-    }
-}
-
-// Function to check if a string is a number
-int is_number(const char *str) {
-    while (*str) {
-        if (!isdigit(*str) && *str != '-') {
-            return 0;
-        }
-        str++;
-    }
-    return 1;
-}
-
-// Function to interpret the 'out' command with handling for quoted strings and numbers
 void run_command(char *line, int line_num) {
     char *cmd = strtok(line, " ");
     if (cmd != NULL && strcmp(cmd, "out") == 0) {
-        char *msg = strtok(NULL, "");
-        if (msg != NULL) {
-            char *trimmed_msg = trim_whitespace(msg);
-
-            // Check if the message is in double quotes
-            if (trimmed_msg[0] == '"' && trimmed_msg[strlen(trimmed_msg) - 1] == '"') {
-                // Print the string without the quotes
-                trimmed_msg[strlen(trimmed_msg) - 1] = '\0';  // Remove the closing quote
-                printf("%s\n", trimmed_msg + 1);  // Skip the opening quote
-            } 
-            // Check if the message is a number
-            else if (is_number(trimmed_msg)) {
-                printf("%s\n", trimmed_msg);
-            } 
-            // Otherwise, treat it as a variable
-            else {
-                Variable *var = find_variable(trimmed_msg);
-                if (var) {
-                    print_variable_value(var);
-                } else {
-                    printf("Error: Unknown variable used on line %d\n", line_num);
-                }
-            }
-            free(trimmed_msg);
+        char *rest = line + strlen(cmd) + 1;  // Point to the rest of the line after "out "
+        char *trimmed_msg = trim_whitespace(rest);
+        if (trimmed_msg[0] == '"' && trimmed_msg[strlen(trimmed_msg) - 1] == '"') {
+            // It's a string literal, print it directly
+            trimmed_msg[strlen(trimmed_msg) - 1] = '\0';  // Remove the closing quote
+            printf("%s\n", trimmed_msg + 1);  // Print from after the opening quote
         } else {
-            printf("Syntax error: expected string after 'out'\n");
+            // It's a variable name
+            Variable *var = find_variable(trimmed_msg);
+            if (var) {
+                if (var->type == TYPE_INT) {
+                    printf("%d\n", var->value.intValue);
+                } else if (var->type == TYPE_STR) {
+                    printf("%s\n", var->value.strValue);
+                } else if (var->type == TYPE_SML) {
+                    printf("%d\n", var->value.smlValue);
+                }
+            } else {
+                printf("Error: Unknown variable '%s' used on line %d\n", trimmed_msg, line_num);
+            }
         }
+        free(trimmed_msg);
+    } else if (cmd != NULL && strcmp(cmd, "in") == 0) {
+        get_input(line + 3); // Skip "in " and pass the rest of the line
     } else {
         printf("Unknown command: %s\n", cmd);
     }
 }
 
-// Function to process an if-else block and ensure proper line number tracking
 void process_if_block(FILE *file, char *condition_line, int *line_num) {
-    // Parse the condition
     char *if_keyword = strtok(condition_line, " ");
     char *var_name = strtok(NULL, " ");
     char *operator = strtok(NULL, " ");
@@ -206,21 +177,24 @@ void process_if_block(FILE *file, char *condition_line, int *line_num) {
         return;
     }
 
-    int condition_met = evaluate_condition(var_name, operator, value);
+    Variable *var = find_variable(var_name);
+    if (!var) {
+        printf("Error: Variable %s not found on line %d\n", var_name, *line_num);
+        return;
+    }
+
+    int condition_met = (strcmp(operator, "==") == 0) && (var->value.intValue == atoi(value));
     int inside_else_block = 0;
 
     char line[256];
-    int end_found = 0;  // Flag to check if 'end' is found
+    int end_found = 0;
 
-    // Process the lines within the if-else block
     while (fgets(line, sizeof(line), file)) {
-        (*line_num)++;  // Increment the line number as we read each line
-
+        (*line_num)++;
         char *trimmed = trim_whitespace(line);
 
-        // Check for the end of the if-else block
         if (strcmp(trimmed, "end") == 0) {
-            end_found = 1;  // Set the flag to true if 'end' is found
+            end_found = 1;
             free(trimmed);
             break;
         }
@@ -231,21 +205,18 @@ void process_if_block(FILE *file, char *condition_line, int *line_num) {
             continue;
         }
 
-        // Only run commands inside the correct block
         if ((condition_met && !inside_else_block) || (!condition_met && inside_else_block)) {
-            run_command(trimmed, *line_num);  // Pass line_num by reference
+            run_command(trimmed, *line_num);
         }
 
         free(trimmed);
     }
 
-    // Check if 'end' was found
     if (!end_found) {
-        printf("Error: Missing end statement after if else\n");
+        printf("Error: Missing end statement after if else on line %d\n", *line_num);
     }
 }
 
-// Function to read and interpret a .casm file with proper line tracking
 void interpret_file(const char *filename) {
     FILE *file = fopen(filename, "r");
     if (!file) {
@@ -254,17 +225,23 @@ void interpret_file(const char *filename) {
     }
 
     char line[256];
-    int line_num = 0;  // Initialize the line number
+    int line_num = 0;
     while (fgets(line, sizeof(line), file)) {
-        line_num++;  // Increment line number for each line read
+        line_num++;
         char *trimmed = trim_whitespace(line);
         if (strlen(trimmed) > 0) {
             if (strncmp(trimmed, "int ", 4) == 0 || strncmp(trimmed, "str ", 4) == 0 || strncmp(trimmed, "sml ", 4) == 0) {
-                declare_variable(trimmed);
+                char *type = strtok(trimmed, " ");
+                char *name = strtok(NULL, " ");
+                char *equals = strtok(NULL, " ");
+                char *value = strtok(NULL, "\"");
+                if (value) {
+                    add_variable(name, (strcmp(type, "int") == 0) ? TYPE_INT : (strcmp(type, "str") == 0) ? TYPE_STR : TYPE_SML, value);
+                }
             } else if (strncmp(trimmed, "if ", 3) == 0) {
-                process_if_block(file, trimmed, &line_num);  // Pass line_num by reference
+                process_if_block(file, trimmed, &line_num);
             } else {
-                run_command(trimmed, line_num);  // Pass current line number to run_command
+                run_command(trimmed, line_num);
             }
         }
         free(trimmed);
