@@ -2,6 +2,9 @@ int num = 10;
 str message = "Hello";
 sml flag = 1;
 
+# This wont be interpreted!
+# Neither will this!
+
 out "This is a test";
 out message;
 out num;
