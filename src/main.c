@@ -146,18 +146,43 @@ void print_variable_value(Variable *var) {
     }
 }
 
-// Function to interpret the 'out' command
-void run_command(char *line) {
+// Function to check if a string is a number
+int is_number(const char *str) {
+    while (*str) {
+        if (!isdigit(*str) && *str != '-') {
+            return 0;
+        }
+        str++;
+    }
+    return 1;
+}
+
+// Function to interpret the 'out' command with handling for quoted strings and numbers
+void run_command(char *line, int line_num) {
     char *cmd = strtok(line, " ");
     if (cmd != NULL && strcmp(cmd, "out") == 0) {
-        char *msg = strtok(NULL, "\"");
+        char *msg = strtok(NULL, "");
         if (msg != NULL) {
             char *trimmed_msg = trim_whitespace(msg);
-            Variable *var = find_variable(trimmed_msg);
-            if (var) {
-                print_variable_value(var);
-            } else {
+
+            // Check if the message is in double quotes
+            if (trimmed_msg[0] == '"' && trimmed_msg[strlen(trimmed_msg) - 1] == '"') {
+                // Print the string without the quotes
+                trimmed_msg[strlen(trimmed_msg) - 1] = '\0';  // Remove the closing quote
+                printf("%s\n", trimmed_msg + 1);  // Skip the opening quote
+            } 
+            // Check if the message is a number
+            else if (is_number(trimmed_msg)) {
                 printf("%s\n", trimmed_msg);
+            } 
+            // Otherwise, treat it as a variable
+            else {
+                Variable *var = find_variable(trimmed_msg);
+                if (var) {
+                    print_variable_value(var);
+                } else {
+                    printf("Error: Unknown variable used on line %d\n", line_num);
+                }
             }
             free(trimmed_msg);
         } else {
@@ -168,8 +193,8 @@ void run_command(char *line) {
     }
 }
 
-// Function to process an if-else block
-void process_if_block(FILE *file, char *condition_line) {
+// Function to process an if-else block and ensure proper line number tracking
+void process_if_block(FILE *file, char *condition_line, int *line_num) {
     // Parse the condition
     char *if_keyword = strtok(condition_line, " ");
     char *var_name = strtok(NULL, " ");
@@ -185,13 +210,17 @@ void process_if_block(FILE *file, char *condition_line) {
     int inside_else_block = 0;
 
     char line[256];
+    int end_found = 0;  // Flag to check if 'end' is found
 
     // Process the lines within the if-else block
     while (fgets(line, sizeof(line), file)) {
+        (*line_num)++;  // Increment the line number as we read each line
+
         char *trimmed = trim_whitespace(line);
 
         // Check for the end of the if-else block
         if (strcmp(trimmed, "end") == 0) {
+            end_found = 1;  // Set the flag to true if 'end' is found
             free(trimmed);
             break;
         }
@@ -204,14 +233,19 @@ void process_if_block(FILE *file, char *condition_line) {
 
         // Only run commands inside the correct block
         if ((condition_met && !inside_else_block) || (!condition_met && inside_else_block)) {
-            run_command(trimmed);
+            run_command(trimmed, *line_num);  // Pass line_num by reference
         }
 
         free(trimmed);
     }
+
+    // Check if 'end' was found
+    if (!end_found) {
+        printf("Error: Missing end statement after if else\n");
+    }
 }
 
-// Function to read and interpret a .casm file
+// Function to read and interpret a .casm file with proper line tracking
 void interpret_file(const char *filename) {
     FILE *file = fopen(filename, "r");
     if (!file) {
@@ -220,15 +254,17 @@ void interpret_file(const char *filename) {
     }
 
     char line[256];
+    int line_num = 0;  // Initialize the line number
     while (fgets(line, sizeof(line), file)) {
+        line_num++;  // Increment line number for each line read
         char *trimmed = trim_whitespace(line);
         if (strlen(trimmed) > 0) {
             if (strncmp(trimmed, "int ", 4) == 0 || strncmp(trimmed, "str ", 4) == 0 || strncmp(trimmed, "sml ", 4) == 0) {
                 declare_variable(trimmed);
             } else if (strncmp(trimmed, "if ", 3) == 0) {
-                process_if_block(file, trimmed);
+                process_if_block(file, trimmed, &line_num);  // Pass line_num by reference
             } else {
-                run_command(trimmed);
+                run_command(trimmed, line_num);  // Pass current line number to run_command
             }
         }
         free(trimmed);
