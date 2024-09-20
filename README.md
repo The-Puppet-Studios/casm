@@ -32,3 +32,27 @@ else
     out "Nope.";
 end
 ```
+
+## Comments
+To add a comment you need to put a hashtag at the beginning of the line. Like this:
+
+```
+# This wont be interpreted!
+```
+
+## Input
+To make an input variable you need to add in to the beginning.
+
+Also for input variables dont add an equals sign. It considers the = as part of the prompt.
+
+That will be fixed at some point.
+
+Anyways with input variables if you define them as int for example the user has to put in an integar.
+
+You make an input variable like this:
+
+```
+in str input "Input a string: ";
+in int intinput "Input an integar: ";
+in sml smlinput "Input a small integar (1 or 0): ";
+```
