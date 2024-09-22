@@ -274,10 +274,31 @@ void interpret_file(const char *filename) {
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
-        printf("Usage: casm <file.casm>\n"); // Check command line arguments
+        printf("Usage: casm <file.casm>\n");
         return 1;
     }
 
-    interpret_file(argv[1]); // Interpret the given file
+    const char *filename = argv[1];
+    const char *casm_ext = ".casm";
+    const char *casmpp_ext = ".casmpp";
+    const char *file_ext = strrchr(filename, '.'); // Get the file extension
+
+    if (file_ext == NULL) {
+        printf("Error: File not a CASM file. Please run a CASM file.\n");
+        return 1;
+    }
+
+    if (strcmp(file_ext, casmpp_ext) == 0) {
+        printf("Error: CASM++ file detected. Please use the casm++ interpreter to run this file.\n");
+        return 1;
+    }
+
+    if (strcmp(file_ext, casm_ext) == 0) {
+        interpret_file(filename); // Run normally if it's a CASM file
+    } else {
+        printf("Error: File not a CASM file. Please run a CASM file.\n");
+        return 1;
+    }
+
     return 0;
 }
