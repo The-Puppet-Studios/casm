@@ -59,6 +59,3 @@ in sml smlinput "Input a small integar (1 or 0): ";
 
 # Credits
 Voltaged: [Github](https://github.com/VoltagedDebunked)
-
-# Honorable Mentions
-CASM++: [Github](https://github.com/Volis-Tech-Organization/CasmPlusPlus)
