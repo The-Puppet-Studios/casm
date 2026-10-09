@@ -1,5 +1,5 @@
 # Notice
-CASM has been forked to [CASM++](https://github.com/The-Puppet-Studios/casm) since the puppet studios is dead now.
+CASM has been forked to [CASM++](https://github.com/The-Puppet-Studios/casmpp) since the puppet studios is dead now.
 
 # CASM
 CASM is a high-level assembly inspired interpreted language designed to make working with registers easier and more high-level. It supports things like printing, and other stuff.
